@@ -28,11 +28,14 @@ def build_url(filename):
 def index():
     data = []
 
+    counts = get_ayah_counts()
+
     for surah_id, name, filename in surahs:
         data.append({
             "id": surah_id,
             "name": name,
-            "url": build_url(filename)
+            "url": build_url(filename),
+            "ayah_count": counts.get(surah_id, 0)
         })
 
     return render_template("index.html", surahs=data)
@@ -60,6 +63,20 @@ def get_surah(surah_id):
         for r in rows
     ])
 
+def get_ayah_counts():
+    conn = get_db()
+    cur = conn.cursor()
+
+    cur.execute("""
+        SELECT surah, COUNT(*) AS ayah_count
+        FROM quran
+        GROUP BY surah
+    """)
+
+    counts = {row[0]: row[1] for row in cur.fetchall()}
+    conn.close()
+
+    return counts
 
 if __name__ == "__main__":
     app.run(debug=True)

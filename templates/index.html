@@ -209,7 +209,7 @@ body.light header {
 <select id="surahSelect" onchange="changeSurah()">
     {% for s in surahs %}
         <option value="{{ loop.index0 }}">
-            {{ s.name }}
+            {{ s.name }} ({{ s.ayah_count }})
         </option>
     {% endfor %}
 </select>
