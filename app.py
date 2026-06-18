@@ -19,10 +19,8 @@ def get_db():
     conn.row_factory = sqlite3.Row
     return conn
 
-
 def build_url(filename):
     return f"{BASE_URL}/{quote(filename)}"
-
 
 # ---------------- HOME ----------------
 
@@ -34,7 +32,7 @@ def index():
         data.append({
             "id": surah_id,
             "name": name,
-            "url": build_url(filename)   # ✅ SYSTEM A FIX
+            "url": build_url(filename)
         })
 
     return render_template("index.html", surahs=data)

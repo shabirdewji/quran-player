@@ -5,6 +5,24 @@
 <title>Quran Player</title>
 
 <style>
+:root {
+    --ayah-font-size: 16px;
+}
+
+.ayah {
+    font-size: var(--ayah-font-size);
+    transition: font-size 0.12s ease;
+    padding: 14px;
+    margin-bottom: 12px;
+    border-radius: 14px;
+    background: #15151c;
+    border: 1px solid #222;
+    line-height: 1.6;
+}
+.ayah {
+    font-size: var(--ayah-font-size);
+    transition: font-size 0.12s ease;
+}
 body {
     margin: 0;
     font-family: -apple-system, BlinkMacSystemFont, Arial;
@@ -40,6 +58,22 @@ select {
     outline: none;
 }
 
+select option {
+    background: #1c1c24;
+    color: white;
+}
+
+body.light select {
+    background: white;
+    color: black;
+    border: 1px solid #ddd;
+}
+
+body.light select option {
+    background: white;
+    color: black;
+}
+
 /* AYAH CONTAINER */
 #ayahWindow {
     height: 65vh;
@@ -49,23 +83,14 @@ select {
 }
 
 /* AYAH CARD (iOS style) */
-.ayah {
-    padding: 14px;
-    margin-bottom: 12px;
-    border-radius: 14px;
-    background: #15151c;
-    border: 1px solid #222;
-    transition: 0.2s ease;
-    line-height: 1.6;
-}
 
 .ayah:active {
     transform: scale(0.98);
 }
 
 .ayah-num {
-    font-size: 12px;
-    opacity: 0.5;
+    font-size: inherit;
+    opacity: 0.8;
     margin-bottom: 6px;
 }
 
@@ -80,7 +105,7 @@ select {
     position: fixed;
     bottom: 0;
     width: 100%;
-    background: rgba(18,18,24,0.98);
+    background: grey;
     backdrop-filter: blur(10px);
     padding: 12px;
     padding-bottom: calc(12px + env(safe-area-inset-bottom));
@@ -89,9 +114,85 @@ select {
 
 /* AUDIO */
 audio {
-    width: 100%;
+    width: 25%;
     outline: none;
 }
+
+.bottomBar {
+    position: fixed;
+    bottom: 70px;
+    left: 0;
+    width: 100%;
+    display: flex;
+    justify-content: space-around;
+    align-items: center;
+    background: rgba(18,18,24,0.98);
+    backdrop-filter: blur(10px);
+    border-top: 1px solid #222;
+    padding: 10px;
+    z-index: 20;
+}
+
+.bottomBar button {
+    background: #1c1c24;
+    color: white;
+    border: none;
+    padding: 10px 14px;
+    border-radius: 10px;
+    font-size: 16px;
+}
+
+.sliderGroup {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    color: white;
+    font-size: 14px;
+}
+
+#fontSlider {
+    width: 120px;
+}
+
+/* LIGHT MODE */
+body.light {
+    background: #f5f5f5;
+    color: #111;
+}
+
+body.light .ayah {
+    background: white;
+    border-color: #ddd;
+}
+
+body.light .player,
+body.light .bottomBar,
+body.light header {
+    background: white;
+    color: black;
+    border-color: #ddd;
+}
+
+
+.progress-bar {
+    width: 100%;
+    height: 6px;
+    background: #e5e5e5;   /* light track */
+    border-radius: 999px;
+    position: relative;
+    cursor: pointer;
+    overflow: hidden;
+}
+
+.progress-fill {
+    height: 100%;
+    width: 0%;
+    background: black;     /* black progress */
+    border-radius: 999px;
+    transition: width 0.1s linear;
+}
+
+
 </style>
 </head>
 
@@ -103,13 +204,29 @@ audio {
 <select id="surahSelect" onchange="changeSurah()">
     {% for s in surahs %}
         <option value="{{ loop.index0 }}">
-            {{ s.id }}. {{ s.name }}
+            {{ s.name }}
         </option>
     {% endfor %}
 </select>
 
+<div id="continueCard" style="display:none; padding:10px; background:#222; color:white; margin-bottom:10px; border-radius:8px;">
+    <div id="continueText"></div>
+
+    <div class="progress-bar" id="progressBar">
+    <div class="progress-fill" id="progressFill"></div>
+    </div>
+
+    <div id="progressPercent"></div>
+
+    <button onclick="continueListening()" style="margin-top:8px;">
+        ▶ Continue Listening
+    </button>
+</div>
+
 <!-- AYAH WINDOW -->
 <div id="ayahWindow"></div>
+
+
 
 <!-- PLAYER -->
 <div class="player">
@@ -120,10 +237,16 @@ audio {
 
 let surahs = {{ surahs | tojson }};
 let current = 0;
+let lastSaved = 0;
 
 let audio = document.getElementById("audio");
 let ayahElements = [];
 
+function formatTime(seconds) {
+    const m = Math.floor(seconds / 60);
+    const s = Math.floor(seconds % 60);
+    return `${m}:${s.toString().padStart(2, "0")}`;
+}
 /* ---------------- SURAH ---------------- */
 
 function changeSurah() {
@@ -134,14 +257,15 @@ function changeSurah() {
 function playSurah(index) {
     current = index;
 
+    localStorage.setItem("lastSurah", index);
+
+    document.getElementById("continueCard").style.display = "none";
+
     loadSurah(surahs[index].id);
 
     audio.src = surahs[index].url;
-    audio.play().catch(() => {
-        console.log("Tap play required (iOS safe)");
-    });
+    audio.play();
 }
-
 /* ---------------- AYAH LOAD ---------------- */
 
 async function loadSurah(id) {
@@ -160,8 +284,7 @@ async function loadSurah(id) {
         div.className = "ayah";
 
         div.innerHTML = `
-            <div class="ayah-num">Ayah ${a.ayah}</div>
-            <div>${a.text}</div>
+            <div class="ayah-num">${a.ayah}. ${a.text}</div>
         `;
 
         div.onclick = () => highlight(index);
@@ -169,6 +292,101 @@ async function loadSurah(id) {
         container.appendChild(div);
         ayahElements.push(div);
     });
+}
+
+
+function showContinueCard() {
+    const surah = localStorage.getItem("resumeSurah");
+    const time = parseFloat(localStorage.getItem("resumeTime"));
+
+    if (!surah || isNaN(time) || !surahs[surah]) return;
+
+    const card = document.getElementById("continueCard");
+    const text = document.getElementById("continueText");
+
+    card.style.display = "block";
+
+    text.innerText =
+        `Continue: ${surahs[surah].name} — ${formatTime(time)}`;
+
+    // load audio metadata to calculate %
+    const tempAudio = new Audio(surahs[surah].url);
+
+    tempAudio.addEventListener("loadedmetadata", () => {
+        const percent = Math.floor((time / tempAudio.duration) * 100);
+
+        document.getElementById("progressFill").style.width =
+            percent + "%";
+
+        document.getElementById("progressPercent").innerText =
+            percent + "% completed";
+    });
+}
+
+
+function formatProgress() {
+    const dur = audio.duration || 0;
+    const cur = audio.currentTime || 0;
+
+    if (!dur) return "0%";
+
+    return Math.floor((cur / dur) * 100) + "%";
+}
+
+window.addEventListener("DOMContentLoaded", () => {
+    const lastSurah = localStorage.getItem("lastSurah");
+
+    if (lastSurah !== null) {
+        current = parseInt(lastSurah);
+    }
+
+    document.getElementById("surahSelect").value = current;
+
+    loadSurah(surahs[current].id);
+
+    showContinueCard();
+});
+
+/* ---------------- SAVE SPOT OF LAST---------------- */
+
+const progressBar = document.getElementById("progressBar");
+const progressFill = document.getElementById("progressFill");
+
+audio.addEventListener("timeupdate", () => {
+    if (!audio.duration) return;
+
+    const percent = (audio.currentTime / audio.duration) * 100;
+    progressFill.style.width = percent + "%";
+});
+
+progressBar.addEventListener("click", (e) => {
+    const rect = progressBar.getBoundingClientRect();
+    const clickX = e.clientX - rect.left;
+
+    const percent = clickX / rect.width;
+
+    if (audio.duration) {
+        audio.currentTime = percent * audio.duration;
+    }
+});
+
+function continueListening() {
+    const surah = localStorage.getItem("resumeSurah");
+    const time = localStorage.getItem("resumeTime");
+
+    if (surah === null) return;
+    current = parseInt(surah);
+    document.getElementById("surahSelect").value = current;
+    loadSurah(surahs[current].id);
+    audio.src = surahs[current].url;
+    audio.addEventListener("loadedmetadata", () => {
+        if (time) {
+            audio.currentTime = parseFloat(time);
+        }
+        audio.play();
+    }, { once: true });
+
+    document.getElementById("continueCard").style.display = "none";
 }
 
 /* ---------------- HIGHLIGHT ---------------- */
@@ -187,13 +405,65 @@ function highlight(index) {
     });
 }
 
-/* ---------------- INIT ---------------- */
+function togglePlay() {
+    const btn = document.getElementById("playBtn");
 
-window.onload = () => {
-    playSurah(0);
-};
+    if (audio.paused) {
+        audio.play();
+        btn.innerText = "⏸";
+    } else {
+        audio.pause();
+        btn.innerText = "▶";
+    }
+}
+
+function changeFontSize(size) {
+    document.documentElement.style.setProperty('--ayah-font-size', size + 'px');
+    localStorage.setItem("fontSize", size);
+}
+
+
+window.addEventListener("DOMContentLoaded", () => {
+    const size = localStorage.getItem("fontSize") || 16;
+
+    document.getElementById("fontSlider").value = size;
+    changeFontSize(size);
+});
+
+function toggleTheme() {
+    document.body.classList.toggle("light");
+
+    const isLight = document.body.classList.contains("light");
+    localStorage.setItem("theme", isLight ? "light" : "dark");
+
+    document.getElementById("themeBtn").innerText = isLight ? "☀️" : "🌙";
+}
+
+window.addEventListener("DOMContentLoaded", () => {
+    const theme = localStorage.getItem("theme");
+
+    if (theme === "light") {
+        document.body.classList.add("light");
+        document.getElementById("themeBtn").innerText = "☀️";
+    }
+});
+
 
 </script>
+
+<div class="bottomBar">
+
+    <button onclick="togglePlay()" id="playBtn">▶</button>
+
+    <div class="sliderGroup">
+        <span>A</span>
+        <input type="range" min="14" max="28" value="16" id="fontSlider" oninput="changeFontSize(this.value)">
+        <span>A</span>
+    </div>
+
+    <button onclick="toggleTheme()" id="themeBtn">🌙</button>
+
+</div>
 
 </body>
 </html>
