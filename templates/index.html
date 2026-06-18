@@ -142,12 +142,17 @@ audio {
     font-size: 16px;
 }
 
-.sliderGroup {
-    display: flex;
-    align-items: center;
-    gap: 6px;
+body.light .bottomBar button {
+    background: #f0f0f0;
+    color: black;
+}
+
+.sliderGroup span {
     color: white;
-    font-size: 14px;
+}
+
+body.light .sliderGroup span {
+    color: black;
 }
 
 #fontSlider {
@@ -227,19 +232,13 @@ body.light header {
 <div id="ayahWindow"></div>
 
 
-
-<!-- PLAYER -->
-<div class="player">
-    <audio id="audio" controls></audio>
-</div>
-
 <script>
 
 let surahs = {{ surahs | tojson }};
 let current = 0;
 let lastSaved = 0;
 
-let audio = document.getElementById("audio");
+let audio;
 let ayahElements = [];
 
 function formatTime(seconds) {
@@ -349,25 +348,35 @@ window.addEventListener("DOMContentLoaded", () => {
 
 /* ---------------- SAVE SPOT OF LAST---------------- */
 
-const progressBar = document.getElementById("progressBar");
-const progressFill = document.getElementById("progressFill");
+window.addEventListener("DOMContentLoaded", () => {
 
-audio.addEventListener("timeupdate", () => {
-    if (!audio.duration) return;
+    audio = document.getElementById("audio");
+    const progressBar = document.getElementById("progressBar");
+    const progressFill = document.getElementById("progressFill");
 
-    const percent = (audio.currentTime / audio.duration) * 100;
-    progressFill.style.width = percent + "%";
-});
-
-progressBar.addEventListener("click", (e) => {
-    const rect = progressBar.getBoundingClientRect();
-    const clickX = e.clientX - rect.left;
-
-    const percent = clickX / rect.width;
-
-    if (audio.duration) {
-        audio.currentTime = percent * audio.duration;
+    if (!audio || !progressBar || !progressFill) {
+        console.error("Player elements missing");
+        return;
     }
+
+    // progress update
+    audio.addEventListener("timeupdate", () => {
+        if (!audio.duration) return;
+
+        const percent = (audio.currentTime / audio.duration) * 100;
+        progressFill.style.width = percent + "%";
+    });
+
+    // click seek
+    progressBar.addEventListener("click", (e) => {
+        const rect = progressBar.getBoundingClientRect();
+        const percent = (e.clientX - rect.left) / rect.width;
+
+        if (audio.duration) {
+            audio.currentTime = percent * audio.duration;
+        }
+    });
+
 });
 
 function continueListening() {
@@ -455,9 +464,12 @@ window.addEventListener("DOMContentLoaded", () => {
 
     <button onclick="togglePlay()" id="playBtn">▶</button>
 
+    <audio id="audio"></audio>
+
     <div class="sliderGroup">
         <span>A</span>
-        <input type="range" min="14" max="28" value="16" id="fontSlider" oninput="changeFontSize(this.value)">
+        <input type="range" min="14" max="28" value="16" id="fontSlider"
+               oninput="changeFontSize(this.value)">
         <span>A</span>
     </div>
 
